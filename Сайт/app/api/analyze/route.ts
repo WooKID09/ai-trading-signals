@@ -1,12 +1,19 @@
 export async function POST(req: Request) {
   try {
-    const form = await req.formData()
+    const body = await req.json()
 
-    const price = String(form.get("price") || "")
-    const h1 = form.get("screenshot_H1") as File
-    const m30 = form.get("screenshot_30M") as File
-    const m15 = form.get("screenshot_15M") as File
-    const m5 = form.get("screenshot_5M") as File
+    const {
+      price,
+      trendH1,
+      trend30,
+      trend15,
+      trend5,
+      ema50,
+      rsi,
+      orderBlock,
+      liquiditySweep,
+      fiboZone
+    } = body
 
     const deepseekKey = process.env.DEEPSEEK_API_KEY
 
@@ -14,38 +21,49 @@ export async function POST(req: Request) {
       return Response.json({
         finalSignal: "WAIT",
         confidence: 0,
-        reason: "DeepSeek API key missing"
+        entry: "-",
+        tp1: "-",
+        tp2: "-",
+        sl: "-",
+        window: "30-60 min",
+        reason: "DEEPSEEK_API_KEY missing",
+        management: "Check Vercel environment variables"
       })
     }
 
-    const fileToBase64 = async (file: File) => {
-      const buffer = await file.arrayBuffer()
-      return Buffer.from(buffer).toString("base64")
-    }
-
-    const images = await Promise.all([
-      fileToBase64(h1),
-      fileToBase64(m30),
-      fileToBase64(m15),
-      fileToBase64(m5)
-    ])
-
     const prompt = `
-Ты анализируешь рынок золота по скриншотам TradingView.
-Цена сейчас: ${price}
+Ты торговый AI-аналитик по золоту XAUUSD.
 
-Верни строго JSON:
+Данные:
+- Current price: ${price}
+- H1 trend: ${trendH1}
+- 30M trend: ${trend30}
+- 15M trend: ${trend15}
+- 5M trend: ${trend5}
+- Price vs EMA50: ${ema50}
+- RSI: ${rsi}
+- Order Block: ${orderBlock}
+- Liquidity Sweep: ${liquiditySweep}
+- Fibonacci Zone: ${fiboZone}
 
+Правила:
+- Верни BUY, если есть сильное подтверждение вверх
+- Верни SELL, если есть сильное подтверждение вниз
+- Верни WAIT, если структура слабая или смешанная
+- Не выдумывай уверенность 100 без причины
+- Верни только JSON
+
+Формат:
 {
-"signal":"BUY или SELL или WAIT",
-"confidence":0-100,
-"entry":"уровень входа",
-"tp1":"тейк 1",
-"tp2":"тейк 2",
-"sl":"стоп",
-"window":"время",
-"reason":"объяснение",
-"management":"что делать"
+  "signal":"BUY or SELL or WAIT",
+  "confidence": 0-100,
+  "entry":"...",
+  "tp1":"...",
+  "tp2":"...",
+  "sl":"...",
+  "window":"...",
+  "reason":"...",
+  "management":"..."
 }
 `
 
@@ -61,13 +79,7 @@ export async function POST(req: Request) {
         messages: [
           {
             role: "user",
-            content: [
-              { type: "text", text: prompt },
-              ...images.map(img => ({
-                type: "image_url",
-                image_url: { url: `data:image/jpeg;base64,${img}` }
-              }))
-            ]
+            content: prompt
           }
         ],
         temperature: 0.2
@@ -75,23 +87,42 @@ export async function POST(req: Request) {
     })
 
     const data = await response.json()
+
+    if (!response.ok) {
+      return Response.json({
+        finalSignal: "WAIT",
+        confidence: 0,
+        entry: price || "-",
+        tp1: "-",
+        tp2: "-",
+        sl: "-",
+        window: "30-60 min",
+        reason: "DeepSeek API error",
+        management: "Check DeepSeek key or billing",
+        warnings: [JSON.stringify(data)]
+      })
+    }
+
     const content = data?.choices?.[0]?.message?.content || "{}"
 
     let result: any = {}
+
     try {
       result = JSON.parse(content)
-    } catch {}
+    } catch {
+      result = {}
+    }
 
     return Response.json({
       finalSignal: result.signal || "WAIT",
       confidence: result.confidence || 0,
-      entry: result.entry || price,
+      entry: result.entry || price || "-",
       tp1: result.tp1 || "-",
       tp2: result.tp2 || "-",
       sl: result.sl || "-",
       window: result.window || "30-60 min",
-      reason: result.reason || "",
-      management: result.management || "",
+      reason: result.reason || "No clear reason returned",
+      management: result.management || "Wait for stronger confirmation",
       engines: {
         deepseek: {
           signal: result.signal || "WAIT",
@@ -103,7 +134,13 @@ export async function POST(req: Request) {
     return Response.json({
       finalSignal: "WAIT",
       confidence: 0,
-      reason: "server error",
+      entry: "-",
+      tp1: "-",
+      tp2: "-",
+      sl: "-",
+      window: "30-60 min",
+      reason: "Server error",
+      management: "Check Vercel logs",
       warnings: [String(error)]
     })
   }
