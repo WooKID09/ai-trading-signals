@@ -1,6 +1,6 @@
 export async function POST(req: Request) {
   try {
-    const body = await req.json()
+    const body = await req.json();
 
     const {
       price,
@@ -13,9 +13,9 @@ export async function POST(req: Request) {
       orderBlock,
       liquiditySweep,
       fiboZone
-    } = body
+    } = body;
 
-    const deepseekKey = process.env.DEEPSEEK_API_KEY
+    const deepseekKey = process.env.DEEPSEEK_API_KEY;
 
     if (!deepseekKey) {
       return Response.json({
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
         window: "30-60 min",
         reason: "DEEPSEEK_API_KEY missing",
         management: "Check Vercel environment variables"
-      })
+      });
     }
 
     const prompt = `
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
   "reason":"...",
   "management":"..."
 }
-`
+`;
 
     const response = await fetch("https://api.deepseek.com/chat/completions", {
       method: "POST",
@@ -84,9 +84,9 @@ export async function POST(req: Request) {
         ],
         temperature: 0.2
       })
-    })
+    });
 
-    const data = await response.json()
+    const data = await response.json();
 
     if (!response.ok) {
       return Response.json({
@@ -100,17 +100,20 @@ export async function POST(req: Request) {
         reason: "DeepSeek API error",
         management: "Check DeepSeek key or billing",
         warnings: [JSON.stringify(data)]
-      })
+      });
     }
 
-    const content = data?.choices?.[0]?.message?.content || "{}"
+    const content = data?.choices?.[0]?.message?.content || "";
 
-    let result: any = {}
+    let result: any = {};
 
     try {
-      result = JSON.parse(content)
+      const match = content.match(/\{[\s\S]*\}/);
+      if (match) {
+        result = JSON.parse(match[0]);
+      }
     } catch {
-      result = {}
+      result = {};
     }
 
     return Response.json({
@@ -129,7 +132,7 @@ export async function POST(req: Request) {
           confidence: result.confidence || 0
         }
       }
-    })
+    });
   } catch (error) {
     return Response.json({
       finalSignal: "WAIT",
@@ -142,6 +145,6 @@ export async function POST(req: Request) {
       reason: "Server error",
       management: "Check Vercel logs",
       warnings: [String(error)]
-    })
+    });
   }
 }
