@@ -21,16 +21,14 @@ export async function POST(req: Request) {
         management: "Загрузи все таймфреймы.",
         warnings: ["Нужны все 4 скриншота"],
         engines: {
-          chatgpt: { signal: "WAIT", confidence: 0 },
-          deepseek: { signal: "WAIT", confidence: 0 }
+          chatgpt: { signal: "WAIT", confidence: 0 }
         }
       });
     }
 
     const openaiKey = process.env.OPENAI_API_KEY;
-    const deepseekKey = process.env.DEEPSEEK_API_KEY;
 
-    if (!openaiKey || !deepseekKey) {
+    if (!openaiKey) {
       return Response.json({
         finalSignal: "WAIT",
         confidence: 0,
@@ -39,12 +37,11 @@ export async function POST(req: Request) {
         tp2: "-",
         sl: "-",
         window: "30-60 min",
-        reason: "Не найдены API ключи OpenAI или DeepSeek в Environment Variables.",
-        management: "Проверь ключи в Vercel.",
-        warnings: ["API keys missing"],
+        reason: "Не найден OPENAI_API_KEY в Environment Variables.",
+        management: "Проверь ключ OpenAI в Vercel.",
+        warnings: ["OPENAI_API_KEY missing"],
         engines: {
-          chatgpt: { signal: "WAIT", confidence: 0 },
-          deepseek: { signal: "WAIT", confidence: 0 }
+          chatgpt: { signal: "WAIT", confidence: 0 }
         }
       });
     }
@@ -91,7 +88,7 @@ export async function POST(req: Request) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${openaiKey}`
+        Authorization: `Bearer ${openaiKey}`
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
@@ -114,32 +111,28 @@ export async function POST(req: Request) {
     });
 
     const openAiData = await openAiResponse.json();
+
+    if (!openAiResponse.ok) {
+      return Response.json({
+        finalSignal: "WAIT",
+        confidence: 0,
+        entry: price || "-",
+        tp1: "-",
+        tp2: "-",
+        sl: "-",
+        window: "30-60 min",
+        reason: "OpenAI вернул ошибку.",
+        management: "Проверь ключ, биллинг и логи Vercel.",
+        warnings: [JSON.stringify(openAiData)],
+        engines: {
+          chatgpt: { signal: "WAIT", confidence: 0 }
+        }
+      });
+    }
+
     const openAiText = openAiData?.choices?.[0]?.message?.content || "{}";
 
-    const deepseekResponse = await fetch("https://api.deepseek.com/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${deepseekKey}`
-      },
-      body: JSON.stringify({
-        model: "deepseek-chat",
-        messages: [
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        temperature: 0.2,
-        response_format: { type: "json_object" }
-      })
-    });
-
-    const deepseekData = await deepseekResponse.json();
-    const deepseekText = deepseekData?.choices?.[0]?.message?.content || "{}";
-
     let openAiJson: any = {};
-    let deepseekJson: any = {};
 
     try {
       openAiJson = JSON.parse(openAiText);
@@ -147,49 +140,24 @@ export async function POST(req: Request) {
       openAiJson = {};
     }
 
-    try {
-      deepseekJson = JSON.parse(deepseekText);
-    } catch {
-      deepseekJson = {};
-    }
-
     const openAiSignal = openAiJson.signal || "WAIT";
-    const deepseekSignal = deepseekJson.signal || "WAIT";
-
     const openAiConfidence = Number(openAiJson.confidence || 0);
-    const deepseekConfidence = Number(deepseekJson.confidence || 0);
-
-    let finalSignal = "WAIT";
-    const finalConfidence = Math.round((openAiConfidence + deepseekConfidence) / 2);
-
-    if (openAiSignal === deepseekSignal && openAiSignal !== "WAIT") {
-      finalSignal = openAiSignal;
-    }
-
-    const preferred = deepseekConfidence >= openAiConfidence ? deepseekJson : openAiJson;
 
     return Response.json({
-      finalSignal,
-      confidence: finalConfidence,
-      entry: preferred.entry || price || "-",
-      tp1: preferred.tp1 || "-",
-      tp2: preferred.tp2 || "-",
-      sl: preferred.sl || "-",
-      window: preferred.window || "30-60 min",
-      reason:
-        finalSignal === "WAIT"
-          ? "Обе модели не дали уверенный общий вход."
-          : `ChatGPT и DeepSeek подтвердили сигнал ${finalSignal}.`,
-      management: preferred.management || "Следуй TP/SL.",
+      finalSignal: openAiSignal,
+      confidence: openAiConfidence,
+      entry: openAiJson.entry || price || "-",
+      tp1: openAiJson.tp1 || "-",
+      tp2: openAiJson.tp2 || "-",
+      sl: openAiJson.sl || "-",
+      window: openAiJson.window || "30-60 min",
+      reason: openAiJson.reason || "Сигнал получен от ChatGPT.",
+      management: openAiJson.management || "Следуй TP/SL.",
       warnings: [],
       engines: {
         chatgpt: {
           signal: openAiSignal,
           confidence: openAiConfidence
-        },
-        deepseek: {
-          signal: deepseekSignal,
-          confidence: deepseekConfidence
         }
       }
     });
@@ -206,8 +174,7 @@ export async function POST(req: Request) {
       management: "Проверь логи Vercel.",
       warnings: [String(error)],
       engines: {
-        chatgpt: { signal: "WAIT", confidence: 0 },
-        deepseek: { signal: "WAIT", confidence: 0 }
+        chatgpt: { signal: "WAIT", confidence: 0 }
       }
     });
   }
