@@ -79,9 +79,10 @@ export async function POST(req: Request) {
 Только JSON. Без markdown. Без пояснений вне JSON.
 `;
 
-    async function fileToBase64(file: File) {
-      const arrayBuffer = await file.arrayBuffer();
-      return Buffer.from(arrayBuffer).toString("base64");
+   const fileToBase64 = async (file: File) => {
+  const arrayBuffer = await file.arrayBuffer();
+  return Buffer.from(arrayBuffer).toString("base64");
+};
     }
 
     const imageFiles = [h1, m30, m15, m5] as File[];
