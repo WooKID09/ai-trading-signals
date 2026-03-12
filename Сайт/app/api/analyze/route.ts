@@ -3,29 +3,50 @@ export async function POST(req: Request) {
     const form = await req.formData()
 
     const price = String(form.get("price") || "")
+    const h1 = form.get("screenshot_H1") as File
+    const m30 = form.get("screenshot_30M") as File
+    const m15 = form.get("screenshot_15M") as File
+    const m5 = form.get("screenshot_5M") as File
 
     const deepseekKey = process.env.DEEPSEEK_API_KEY
 
-    const prompt = `
-Ты анализируешь рынок золота.
+    if (!deepseekKey) {
+      return Response.json({
+        finalSignal: "WAIT",
+        confidence: 0,
+        reason: "DeepSeek API key missing"
+      })
+    }
 
-Текущая цена: ${price}
+    const fileToBase64 = async (file: File) => {
+      const buffer = await file.arrayBuffer()
+      return Buffer.from(buffer).toString("base64")
+    }
+
+    const images = await Promise.all([
+      fileToBase64(h1),
+      fileToBase64(m30),
+      fileToBase64(m15),
+      fileToBase64(m5)
+    ])
+
+    const prompt = `
+Ты анализируешь рынок золота по скриншотам TradingView.
+Цена сейчас: ${price}
 
 Верни строго JSON:
 
 {
 "signal":"BUY или SELL или WAIT",
-"confidence": число 0-100,
+"confidence":0-100,
 "entry":"уровень входа",
 "tp1":"тейк 1",
 "tp2":"тейк 2",
 "sl":"стоп",
 "window":"время",
-"reason":"краткое объяснение",
+"reason":"объяснение",
 "management":"что делать"
 }
-
-Без текста вне JSON.
 `
 
     const response = await fetch("https://api.deepseek.com/chat/completions", {
@@ -40,7 +61,13 @@ export async function POST(req: Request) {
         messages: [
           {
             role: "user",
-            content: prompt
+            content: [
+              { type: "text", text: prompt },
+              ...images.map(img => ({
+                type: "image_url",
+                image_url: { url: `data:image/jpeg;base64,${img}` }
+              }))
+            ]
           }
         ],
         temperature: 0.2
@@ -48,16 +75,12 @@ export async function POST(req: Request) {
     })
 
     const data = await response.json()
-
     const content = data?.choices?.[0]?.message?.content || "{}"
 
     let result: any = {}
-
     try {
       result = JSON.parse(content)
-    } catch {
-      result = {}
-    }
+    } catch {}
 
     return Response.json({
       finalSignal: result.signal || "WAIT",
@@ -76,21 +99,12 @@ export async function POST(req: Request) {
         }
       }
     })
-
   } catch (error) {
-
     return Response.json({
       finalSignal: "WAIT",
       confidence: 0,
-      entry: "-",
-      tp1: "-",
-      tp2: "-",
-      sl: "-",
-      window: "30-60 min",
       reason: "server error",
-      management: "check logs",
       warnings: [String(error)]
     })
-
   }
 }
