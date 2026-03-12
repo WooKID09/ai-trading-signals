@@ -35,35 +35,29 @@ export async function POST(req: Request) {
 Ты торговый AI-аналитик по золоту XAUUSD.
 
 Данные:
-- Current price: ${price}
-- H1 trend: ${trendH1}
-- 30M trend: ${trend30}
-- 15M trend: ${trend15}
-- 5M trend: ${trend5}
-- Price vs EMA50: ${ema50}
-- RSI: ${rsi}
-- Order Block: ${orderBlock}
-- Liquidity Sweep: ${liquiditySweep}
-- Fibonacci Zone: ${fiboZone}
+Current price: ${price}
+H1 trend: ${trendH1}
+30M trend: ${trend30}
+15M trend: ${trend15}
+5M trend: ${trend5}
+Price vs EMA50: ${ema50}
+RSI: ${rsi}
+Order Block: ${orderBlock}
+Liquidity Sweep: ${liquiditySweep}
+Fibonacci Zone: ${fiboZone}
 
-Правила:
-- Верни BUY, если есть сильное подтверждение вверх
-- Верни SELL, если есть сильное подтверждение вниз
-- Верни WAIT, если структура слабая или смешанная
-- Не выдумывай уверенность 100 без причины
-- Верни только JSON
+Верни только JSON:
 
-Формат:
 {
-  "signal":"BUY or SELL or WAIT",
-  "confidence": 0-100,
-  "entry":"...",
-  "tp1":"...",
-  "tp2":"...",
-  "sl":"...",
-  "window":"...",
-  "reason":"...",
-  "management":"..."
+ "signal":"BUY or SELL or WAIT",
+ "confidence":0-100,
+ "entry":"...",
+ "tp1":"...",
+ "tp2":"...",
+ "sl":"...",
+ "window":"...",
+ "reason":"...",
+ "management":"..."
 }
 `;
 
@@ -75,7 +69,6 @@ export async function POST(req: Request) {
       },
       body: JSON.stringify({
         model: "deepseek-chat",
-        response_format: { type: "json_object" },
         messages: [
           {
             role: "user",
@@ -108,11 +101,11 @@ export async function POST(req: Request) {
     let result: any = {};
 
     try {
-      const match = content.match(/\{[\s\S]*\}/);
-      if (match) {
-        result = JSON.parse(match[0]);
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        result = JSON.parse(jsonMatch[0]);
       }
-    } catch {
+    } catch (err) {
       result = {};
     }
 
@@ -133,6 +126,7 @@ export async function POST(req: Request) {
         }
       }
     });
+
   } catch (error) {
     return Response.json({
       finalSignal: "WAIT",
