@@ -79,11 +79,10 @@ export async function POST(req: Request) {
 Только JSON. Без markdown. Без пояснений вне JSON.
 `;
 
-   const fileToBase64 = async (file: File) => {
-  const arrayBuffer = await file.arrayBuffer();
-  return Buffer.from(arrayBuffer).toString("base64");
-};
-    }
+    const fileToBase64 = async (file: File) => {
+      const arrayBuffer = await file.arrayBuffer();
+      return Buffer.from(arrayBuffer).toString("base64");
+    };
 
     const imageFiles = [h1, m30, m15, m5] as File[];
     const base64Images = await Promise.all(imageFiles.map(fileToBase64));
@@ -161,7 +160,7 @@ export async function POST(req: Request) {
     const deepseekConfidence = Number(deepseekJson.confidence || 0);
 
     let finalSignal = "WAIT";
-    let finalConfidence = Math.round((openAiConfidence + deepseekConfidence) / 2);
+    const finalConfidence = Math.round((openAiConfidence + deepseekConfidence) / 2);
 
     if (openAiSignal === deepseekSignal && openAiSignal !== "WAIT") {
       finalSignal = openAiSignal;
